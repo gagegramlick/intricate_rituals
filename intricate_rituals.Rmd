@@ -1,0 +1,531 @@
+---
+title: "Intricate Rituals: Why Men Join The Military"
+author: "Gage Gramlick"
+date: "2023-02-27"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+install.packages("quanteda")
+install.packages("dplyr")
+
+install.packages("quanteda.textmodels")
+install.packages("quanteda.textstats")
+install.packages("quanteda.textplots")
+install.packages("quanteda.corpora")
+install.packages("tm")
+
+
+library(tidytext)
+library(scales)
+library(textdata)
+require(dplyr)
+require(readr)
+
+# other stuff
+require(readtext)
+require(devtools)
+require(tidyverse) # Data preparation and pipes %>%
+require(ggplot2) # For plotting word frequencies
+```
+
+### Preprocessing Data
+
+```{r}
+
+# importing reddit data
+
+raw_data <- read_csv("raw_data.csv")
+
+# subsetting data
+
+sub_data <- subset(raw_data, select = c(body, title, upVotes))
+
+
+```
+
+```{r}
+
+# make tokens object
+
+install.packages("quanteda")
+install.packages("stopwords")
+
+toks_data <- sub_data$body %>%
+  quanteda::tokens(remove_punct = TRUE) 
+
+# make dfm
+
+dfm <- toks_data %>% 
+  quanteda::dfm() %>%
+  quanteda::dfm_remove(stopwords::stopwords("english"))
+
+
+```
+
+### Data Exploration
+
+```{r}
+
+# word cloud
+
+install.packages("wordcloud2")
+library(wordcloud2)
+
+freq <- quanteda.textstats::textstat_frequency(dfm) %>%
+  slice(40:300)
+
+wordcloud2(freq)
+
+
+```
+
+```{r}
+
+# text frequencies
+
+text_stats <- quanteda.textstats::textstat_frequency(dfm)
+
+```
+
+```{r}
+
+# topic model
+
+install.packages("stm")
+library(igraph)    
+
+processed <- stm::textProcessor(sub_data$body, metadata=sub_data)
+
+out <- stm::prepDocuments(processed$documents, processed$vocab, processed$meta)
+
+docs <- out$documents
+vocab <- out$vocab
+meta <- out$meta
+
+PrevFit <- stm::stm(docs, vocab, K=20, 
+                       max.em.its=75, data=meta, init.type="Spectral", 
+                       seed=8458159)
+
+plot(PrevFit, type="summary", xlim=c(0,.4)) 
+
+plot(PrevFit, type="labels", topics=1:10)
+
+plot(PrevFit, type="labels", topics=11:20)
+
+stm::labelTopics(PrevFit)
+
+labels<- c("Wives at Home + Alcohol",
+           "Paying For Sex",
+           "The Navy",
+           "Reddit",
+           "Health",
+           "Military Vehicles",
+           "War",
+           "Politics",
+           "Trench Warfare",
+           "Food",
+           "Technical Work",
+           "Gay Sex + Homophobia",
+           "Love",
+           "Reddit Housekeeping",
+           "Deployment",
+           "Rough Conditions",
+           "Reddit Lingo",
+           "Seasoned Veterans",
+           "Star Soldiers + Big Penises",
+           "Leaders")
+
+labels <- toupper(labels)
+
+stm::plot.STM(PrevFit, type="summary", custom.labels = labels, main="Topic Prevalence")
+
+```
+
+### Finding Key Posts
+
+```{r}
+
+# key words to find key posts:
+
+all_keywords <- c("abuse",
+"affection",
+"AIDs",
+"amigo",
+"amigos",
+"anal",
+"anus",
+"asshole",
+"best friend",
+"best friends",
+"bitch",
+"blow job",
+"bottoming",
+"boy toy",
+"boy",
+"boys",
+"bro",
+"bromance",
+"bromances",
+"bros before hoes",
+"bros",
+"brother",
+"brotherhood",
+"buddies",
+"buddy",
+"built",
+"butthole",
+"cameraderie",
+"chad",
+"closeness",
+"cock",
+"communion",
+"community" ,
+"companionship",
+"company",
+"compassion",
+"confidant",
+"cry",
+"crying",
+"cuddle",
+"cuddling",
+"cum",
+"cunt",
+"daddy",
+"deep",
+"dick",
+"embrace",
+"empathy",
+"fag",
+"faggot",
+"femboy",
+"feminine",
+"flirt",
+"flirt",
+"flirting",
+"flirty",
+"fraternity",
+"friendship",
+"fuck",
+"fucked up",
+"fucking" ,
+"gay",
+"girly",
+"grateful",
+"grope",
+"hand holding" ,
+"handsome",
+"heavy petting",
+"HIV",
+"hoe",
+"hold hands" ,
+"homophobia",
+"hug",
+"hugging",
+"hung",
+"incel",
+"intimacy",
+"intimate",
+"jerk off",
+"jock",
+"kink",
+"kiss",
+"life-long",
+"lifelong",
+"lolita",
+"love",
+"loving",
+"make out",
+"make-out",
+"man whore",
+"masculine",
+"molest",
+"molestation",
+"muscles",
+"oral sex",
+"pal",
+"pals",
+"partnership",
+"partnerships",
+"penis",
+"PTSD",
+"rape",
+"relationship",
+"relationships",
+"ride or die",
+"ride-or-die",
+"right hand man",
+"right-hand man",
+"ripped",
+"romance",
+"romantic",
+"selfless",
+"sex",
+"sexual assault",
+"slut",
+"snuggle",
+"solidarity",
+"soulmate",
+"STD",
+"straight",
+"tears",
+"topping",
+"touchy feely",
+"trust",
+"twat",
+"warm",
+"whimpy",
+"whore")
+
+
+```
+
+```{r}
+
+# keywords in context
+
+kwic <- quanteda::kwic(toks_data, pattern = quanteda::phrase(all_keywords), window = 6,
+             case_insensitive = T) 
+
+kwic <- kwic %>% 
+  subset(docname, pre, keyword, post)
+
+# getting a number set of content so I can match to kwic
+
+sub_data_numbered <- sub_data %>%
+  mutate(id=row_number()) %>% 
+  select(id, body, title, upVotes)
+
+# post id numbers after manually reading kwic results:
+
+list <- c(2,
+56,
+60,
+61,
+63,
+136,
+254,
+334,
+342,
+413,
+424,
+447,
+458,
+467,
+473,
+527,
+553,
+554,
+564,
+590,
+616,
+624,
+630,
+641,
+645,
+647,
+649,
+655,
+657,
+661,
+662,
+685,
+711,
+720,
+723,
+725,
+736,
+737,
+741,
+794,
+809,
+813,
+862,
+895,
+900,
+926,
+927,
+931,
+935,
+1033,
+1059,
+1062,
+1087,
+1091,
+1104,
+1108,
+1176,
+1192,
+1311,
+1375,
+1376,
+1418,
+1507,
+1547,
+1555,
+1561,
+1613,
+1626,
+1739,
+1744,
+1753,
+1794,
+1831,
+1856,
+1858,
+1885,
+1912,
+1975,
+1978,
+2022,
+2136,
+2138,
+2203,
+2251,
+2265,
+2269,
+2286,
+2324,
+2431,
+2440,
+2504,
+2676,
+2710,
+2722,
+2763,
+2772,
+2821,
+2856,
+2896,
+2903,
+2972,
+3023,
+3033,
+3041,
+3141,
+3146,
+3180,
+3182,
+3192,
+3213,
+3214,
+3338,
+3379,
+3444,
+3633,
+3668,
+3825,
+3840,
+3946,
+3993,
+4025,
+4116,
+4200,
+4217,
+4258,
+4323,
+4343,
+4352,
+4547,
+4567,
+4579,
+4602,
+4685,
+4917,
+5020,
+5027,
+5076,
+5118,
+5130,
+5142,
+5178,
+5256,
+5309,
+5438,
+5559,
+5586,
+5601,
+5640,
+5655,
+5672,
+5798,
+5830,
+5933,
+6049,
+6117,
+6182,
+6232,
+6333,
+6466,
+6489,
+6501,
+6513,
+6527,
+6638,
+6676,
+6685,
+6700,
+6705,
+6822,
+6919,
+7221,
+7336,
+7441,
+7482,
+7546,
+7603,
+7673,
+7707,
+7711,
+7769,
+7865,
+8268,
+8274,
+8528,
+8531,
+8823,
+8928,
+8952,
+9029,
+9467,
+9487,
+9746,
+9776,
+9923,
+10026,
+10036,
+10038,
+10295,
+10406,
+10487,
+10519,
+10549,
+10564,
+10570,
+10640,
+10756,
+10803,
+10833,
+10861,
+11053,
+11076,
+11248,
+11302,
+11477,
+11480,
+11611,
+11941,
+12194,
+12220)
+
+posts_postkwic <- sub_data_numbered$body[list] %>% 
+  cbind(sub_data_numbered$id[list])
+  as.data.frame()
+
+write.csv(posts_postkwic, "posts_postkwic.csv")
+
+write.csv(kwic, "kwic_data.csv")
+
+
+```
